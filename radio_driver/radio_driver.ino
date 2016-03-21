@@ -21,6 +21,7 @@ boolean B_set = false;
 
 byte oldSec, newSec;
 byte oldDay, newDay;
+float oldTemp, newTemp;
 
 
 void setup() {
@@ -61,6 +62,11 @@ void loop() {
   }
   oldDay = newDay;
 
+  newTemp = rtc.getTemperature();
+  if (newTemp != oldTemp) {
+    displayTemperature(newTemp);
+  }
+  oldTemp = newTemp;
 }
 
 // Interrupt on A changing state
@@ -114,6 +120,11 @@ void displayVolume(byte volume) {
 void setupDisplay() {
   tft.begin();
   tft.fillScreen(ILI9341_BLACK);
+
+  tft.setCursor(0, 90);
+  tft.setTextColor(ILI9341_RED, ILI9341_BLACK);
+  tft.setTextSize(2);
+  tft.print("Driver temp:");
   tft.setCursor(0, 140);
   tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
   tft.setTextSize(3);
@@ -170,7 +181,11 @@ void displayTime(DateTime timestamp) {
   tft.print(timestamp.second(), DEC);
 }
 
-void displayTemperature() {
-
+void displayTemperature(float temperature) {
+  tft.setCursor(150, 90);
+  tft.setTextSize(2);
+  tft.setTextColor(0xC618, ILI9341_BLACK);
+  tft.print(temperature);
+  tft.print("*C");
 }
 
