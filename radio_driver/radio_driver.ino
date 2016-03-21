@@ -1,15 +1,27 @@
 #include "Adafruit_ILI9341.h"
 #include "Sodaq_DS3231.h"
-
-Adafruit_ILI9341 tft = Adafruit_ILI9341(10, 9);
-
-const byte VOLUME_MIN = 0;
-const byte VOLUME_MAX = 35;
+#include <DallasTemperature.h>
+#include <OneWire.h>
 
 enum EncoderPinAssignments {
   encoderPinA = 2, // rigth
   encoderPinB = 3, // left
 };
+
+enum ThermometerPinAssigments {
+  thermometerPin = 4
+};
+
+enum VoltagePinAssigments {
+  voltagePin = A2
+};
+
+Adafruit_ILI9341 tft = Adafruit_ILI9341(10, 9);
+OneWire oneWire(thermometerPin);
+DallasTemperature sensors(&oneWire);
+
+const byte VOLUME_MIN = 0;
+const byte VOLUME_MAX = 35;
 
 volatile byte encoderPos = 0; // a counter for the dial
 byte lastReportedPos = 1; // change management
@@ -21,8 +33,12 @@ boolean B_set = false;
 
 byte oldSec, newSec;
 byte oldDay, newDay;
-float oldTemp, newTemp;
+float oldDriverTemp, newDriverTemp;
+float oldATemp, newATemp;
+float oldM50Temp, newM50Temp;
+float oldK24Temp, newK24Temp;
 
+float voltage;
 
 void setup() {
   pinMode(encoderPinA, INPUT);
@@ -34,6 +50,10 @@ void setup() {
   attachInterrupt(0, doEncoderA, CHANGE);
   // encoder pin on interrupt 1
   attachInterrupt(1, doEncoderB, CHANGE);
+
+  
+
+  sensors.begin();
 
   setupDisplay();
 
@@ -62,11 +82,34 @@ void loop() {
   }
   oldDay = newDay;
 
-  newTemp = rtc.getTemperature();
-  if (newTemp != oldTemp) {
-    displayTemperature(newTemp);
+  newDriverTemp = rtc.getTemperature();
+  if (newDriverTemp != oldDriverTemp) {
+    displayTemperature(newDriverTemp);
   }
-  oldTemp = newTemp;
+  oldDriverTemp = newDriverTemp;
+
+  sensors.requestTemperatures();
+
+  newATemp = sensors.getTempCByIndex(0);
+  if (newATemp != oldATemp) {
+    displayATemperature(newATemp);
+  }
+  oldATemp = newATemp;
+
+  newM50Temp = sensors.getTempCByIndex(1);
+  if (newM50Temp != oldM50Temp) {
+    displayM50Temperature(newM50Temp);
+  }
+  oldM50Temp = newM50Temp;
+
+  newK24Temp = sensors.getTempCByIndex(2);
+  if (newK24Temp != oldK24Temp) {
+    displayK24Temperature(newK24Temp);
+  }
+  oldK24Temp = newK24Temp;
+
+  voltage = (float) analogRead(voltagePin) / 1024 * 5;
+  displayVoltage(voltage);
 }
 
 // Interrupt on A changing state
@@ -187,5 +230,34 @@ void displayTemperature(float temperature) {
   tft.setTextColor(0xC618, ILI9341_BLACK);
   tft.print(temperature);
   tft.print("*C");
+}
+
+void displayATemperature(float temperature) {
+  tft.setCursor(175, 200);
+  tft.setTextColor(ILI9341_CYAN, ILI9341_BLACK);
+  tft.setTextSize(2);
+  tft.print(temperature);
+}
+
+void displayM50Temperature(float temperature) {
+  tft.setCursor(175, 230);
+  tft.setTextColor(ILI9341_CYAN, ILI9341_BLACK);
+  tft.setTextSize(2);
+  tft.print(temperature);
+}
+
+void displayK24Temperature(float temperature) {
+  tft.setCursor(175, 260);
+  tft.setTextColor(ILI9341_CYAN, ILI9341_BLACK);
+  tft.setTextSize(2);
+  tft.print(temperature);
+}
+
+void displayVoltage(float voltage) {
+  tft.setCursor(175, 290);
+  tft.setTextColor(ILI9341_ORANGE, ILI9341_BLACK);
+  tft.setTextSize(2);
+  tft.print(voltage);
+  Serial.println(voltage);
 }
 
