@@ -1,172 +1,80 @@
-#include <Wire.h>
-#include <SPI.h>
-#include "Adafruit_ILI9341.h"
-#include "Adafruit_GFX.h"
-#include "Sodaq_DS3231.h"
-#include <DallasTemperature.h>
-#include <OneWire.h>
+const byte VOLUME_MIN = 0;
+const byte VOLUME_MAX = 35;
 
-#define TFT_DC 9
-#define TFT_CS 10
-#define ONE_WIRE_BUS 2
-#define TEMPERATURE_PRECISION 9
-char weekDay[7][4] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+enum EncoderPinAssignments {
+  encoderPinA = 2,   // rigth
+  encoderPinB = 3,   // left
+  clearButton = 8    // button
+};
 
-const byte LIMIT_LOW  = 0;
-const byte LIMIT_HIGH = 35;
-byte volume           = 0;
+volatile unsigned int encoderPos = 0;  // a counter for the dial
+unsigned int lastReportedPos = 1;  // change management
+static boolean rotating = false;  // debounce management
 
-#define encoder0PinA 3
-#define encoder0PinB 4
-volatile unsigned int encoder0Pos = 0;
-unsigned int tmp                  = 0;
-unsigned int Aold                 = 0;
-unsigned int Bnew                 = 0;
-
-Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
+// interrupt service routine vars
+boolean A_set = false;
+boolean B_set = false;
 
 void setup() {
-  Wire.begin();
+  pinMode(encoderPinA, INPUT);
+  pinMode(encoderPinB, INPUT);
+  pinMode(clearButton, INPUT);
+  // turn on pullup resistors
+  digitalWrite(encoderPinA, HIGH);
+  digitalWrite(encoderPinB, HIGH);
+  digitalWrite(clearButton, HIGH);
 
-  rtc.begin();
-
-  tft.begin();
-  tft.fillScreen(ILI9341_BLACK);
-  tft.setRotation(0);
-  tft.setCursor(0, 140);
-  tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
-  tft.setTextSize(3);
-  tft.print("Volume:");
-  tft.setCursor(0, 200);
-  tft.setTextColor(ILI9341_CYAN, ILI9341_BLACK);
-  tft.setTextSize(2);
-  tft.print("STEG Classe A:");
-  tft.setCursor(0, 230);
-  tft.setTextColor(ILI9341_CYAN, ILI9341_BLACK);
-  tft.setTextSize(2);
-  tft.print("Sony XES M50:");
-  tft.setCursor(0, 260);
-  tft.setTextColor(ILI9341_CYAN, ILI9341_BLACK);
-  tft.setTextSize(2);
-  tft.print("STEG K24:");
-  tft.setCursor(0, 290);
-  tft.setTextColor(ILI9341_ORANGE, ILI9341_BLACK);
-  tft.setTextSize(2);
-  tft.print("Voltage:");
-
-  pinMode(encoder0PinA, INPUT);
-  pinMode(encoder0PinB, INPUT);
-  // encoder pin on interrupt 0 (pin 2)
+  // encoder pin on interrupt 0
   attachInterrupt(0, doEncoderA, CHANGE);
-  // encoder pin on interrupt 1 (pin 3)
+  // encoder pin on interrupt 1
   attachInterrupt(1, doEncoderB, CHANGE);
 
-  //  digitalWrite(UP, LOW);
-  //  digitalWrite(DOWN, LOW);
+  Serial.begin(9600);  // output
 }
 
-uint32_t old_ts;
-
 void loop() {
-  //  DateTime now = rtc.now();
-  //  uint32_t ts = now.getEpoch();
-  //  if (old_ts == 0 || old_ts != ts)
-  //  {
-  //    old_ts = ts;
-  //    Serial.print(now.year(), DEC);
-  //    Serial.print('/');
-  //    Serial.print(now.month(), DEC);
-  //    Serial.print('/');
-  //    Serial.print(now.date(), DEC);
-  //    Serial.print(' ');
-  //    Serial.print(now.hour(), DEC);
-  //    Serial.print(':');
-  //    Serial.print(now.minute(), DEC);
-  //    Serial.print(':');
-  //    Serial.print(now.second(), DEC);
-  //    Serial.print(' ');
-  //    Serial.println(weekDay[now.dayOfWeek()]);
-  //  }
-  //
-  //  rtc.convertTemperature();
-  //
-  //  //GODZINA
-  //  tft.setCursor(18, 25);
-  //  tft.setTextColor(ILI9341_GREEN, ILI9341_BLACK);
-  //  tft.setTextSize(2);
-  //  tft.print("Godzina: ");
-  //  if (now.hour() < 10)
-  //    tft.print('0');
-  //  tft.print(now.hour(), DEC);
-  //  tft.print(':');
-  //  if (now.minute() < 10)
-  //    tft.print('0');
-  //  tft.print(now.minute(), DEC);
-  //  tft.print(':');
-  //  if (now.second() < 10)
-  //    tft.print('0');
-  //  tft.print(now.second(), DEC);
-  //
-  //  //DATA
-  //  tft.setCursor(18, 50);
-  //  tft.setTextColor(ILI9341_GREEN, ILI9341_BLACK);
-  //  tft.setTextSize(2);
-  //  tft.print("Data:   ");
-  //  if (now.date() < 10)
-  //    tft.print('0');
-  //  tft.print(now.date(), DEC);
-  //  tft.print('-');
-  //  if (now.month() < 10)
-  //    tft.print('0');
-  //  tft.print(now.month(), DEC);
-  //  tft.print('-');
-  //  if (now.year() < 10)
-  //    tft.print('0');
-  //  tft.print(now.year(), DEC);
-  //
-  //  //TEMPERATURA zegar
-  //  tft.setCursor(0, 90);
-  //  tft.setTextColor(ILI9341_RED, ILI9341_BLACK);
-  //  tft.setTextSize(2);
-  //  tft.print("Temp");
-  //  tft.setCursor(50, 95);
-  //  tft.setTextSize(1);
-  //  tft.print(" sterownika ");
-  //  tft.setCursor(120, 90);
-  //  tft.setTextSize(2);
-  //  tft.print(": ");
-  //  tft.setTextColor(0xC618, ILI9341_BLACK);
-  //  tft.print(rtc.getTemperature());
-  //  tft.print("*C");
+  rotating = true;  // reset the debouncer
+
+  if (lastReportedPos != encoderPos) {
+    Serial.print("Index:");
+    Serial.println(encoderPos, DEC);
+    lastReportedPos = encoderPos;
+  }
+  if (digitalRead(clearButton) == LOW )  {
+    encoderPos = 0;
+  }
 }
 
 // Interrupt on A changing state
 void doEncoderA() {
-  Bnew^Aold ? encoder0Pos++ : encoder0Pos--;
-  Aold = digitalRead(encoder0PinA);
-  displayVolume(encoder0Pos);
+  // debounce
+  if (rotating) delay (1);  // wait a little until the bouncing is done
+
+  // Test transition, did things really change?
+  if (digitalRead(encoderPinA) != A_set) { // debounce once more
+    A_set = !A_set;
+
+    // adjust counter + if A leads B
+    if (A_set && !B_set) {
+      if (encoderPos < VOLUME_MAX)
+        ++encoderPos;
+    }
+
+    rotating = false;  // no more debouncing until loop() hits again
+  }
 }
+
 // Interrupt on B changing state
 void doEncoderB() {
-  Bnew = digitalRead(encoder0PinB);
-  Bnew^Aold ? encoder0Pos++ : encoder0Pos--;
-  displayVolume(encoder0Pos);
-}
+  if (rotating) delay (1);
+  if (digitalRead(encoderPinB) != B_set) {
+    B_set = !B_set;
+    //  adjust counter - 1 if B leads A
+    if (B_set && !A_set) {
+      if (encoderPos > VOLUME_MIN)
+        --encoderPos;
+    }
 
-void displayVolume(byte volume) {
-  tft.setCursor(140, 140);
-  tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
-  tft.setTextSize(3);
-
-  if (volume == 0)
-    tft.print("--");
-
-  if (volume < 10 && volume > 0)
-  {
-    tft.print("0");
-    tft.print(volume);
+    rotating = false;
   }
-
-  if (volume >= 10)
-    tft.print(volume);
 }
