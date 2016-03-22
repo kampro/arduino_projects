@@ -23,9 +23,9 @@ DallasTemperature sensors(&oneWire);
 const byte VOLUME_MIN = 0;
 const byte VOLUME_MAX = 35;
 
-volatile byte encoderPos = 0; // a counter for the dial
-byte lastReportedPos = 1; // change management
-boolean rotating = false; // debounce management
+volatile int encoderPos = 0; // a counter for the dial
+int lastReportedPos = 1; // change management
+boolean busy = false; // debounce management
 
 // interrupt service routine vars
 boolean A_set = false;
@@ -38,9 +38,11 @@ float oldATemp, newATemp;
 float oldM50Temp, newM50Temp;
 float oldK24Temp, newK24Temp;
 
-float voltage;
+float oldVoltage, newVoltage;
 
 void setup() {
+  Serial.begin(9600); // output
+
   pinMode(encoderPinA, INPUT);
   pinMode(encoderPinB, INPUT);
   // turn on pullup resistors
@@ -51,113 +53,107 @@ void setup() {
   // encoder pin on interrupt 1
   attachInterrupt(1, doEncoderB, CHANGE);
 
-  
-
   sensors.begin();
 
   setupDisplay();
-
-  Serial.begin(9600); // output
 }
 
 void loop() {
-  rotating = true; // reset the debouncer
+  //rotating = true; // reset the debouncer
 
-  if (lastReportedPos != encoderPos) {
-    Serial.print("Index:");
-    Serial.println(encoderPos, DEC);
-    displayVolume(encoderPos);
-    lastReportedPos = encoderPos;
-  }
+  //  if (lastReportedPos != encoderPos) {
+  //    displayVolume(encoderPos);
+  //    lastReportedPos = encoderPos;
+  //  }
 
   newSec = rtc.now().second();
   if (newSec != oldSec) {
     displayTime(rtc.now());
+    oldSec = newSec;
   }
-  oldSec = newSec;
 
   newDay = rtc.now().date();
   if (newDay != oldDay) {
     displayDate(rtc.now());
+    oldDay = newDay;
   }
-  oldDay = newDay;
 
   newDriverTemp = rtc.getTemperature();
   if (newDriverTemp != oldDriverTemp) {
     displayTemperature(newDriverTemp);
+    oldDriverTemp = newDriverTemp;
   }
-  oldDriverTemp = newDriverTemp;
 
   sensors.requestTemperatures();
 
   newATemp = sensors.getTempCByIndex(0);
   if (newATemp != oldATemp) {
     displayATemperature(newATemp);
+    oldATemp = newATemp;
   }
-  oldATemp = newATemp;
 
   newM50Temp = sensors.getTempCByIndex(1);
   if (newM50Temp != oldM50Temp) {
     displayM50Temperature(newM50Temp);
+    oldM50Temp = newM50Temp;
   }
-  oldM50Temp = newM50Temp;
 
   newK24Temp = sensors.getTempCByIndex(2);
   if (newK24Temp != oldK24Temp) {
     displayK24Temperature(newK24Temp);
+    oldK24Temp = newK24Temp;
   }
-  oldK24Temp = newK24Temp;
 
-  voltage = (float) analogRead(voltagePin) / 1024 * 5;
-  displayVoltage(voltage);
+  newVoltage = (float) analogRead(voltagePin) / 1024 * 5;
+  if (newVoltage != oldVoltage) {
+    displayVoltage(newVoltage);
+    oldVoltage = newVoltage;
+  }
 }
 
 // Interrupt on A changing state
 void doEncoderA() {
-  // debounce
-  if (rotating) delay (1); // wait a little until the bouncing is done
+  if (busy == false) {
+    busy = true;
+    if (digitalRead(encoderPinA) != A_set) {
+      A_set = !A_set;
 
-  // Test transition, did things really change?
-  if (digitalRead(encoderPinA) != A_set) { // debounce once more
-    A_set = !A_set;
+      // adjust counter + if A leads B
+      if (A_set && !B_set) {
+        if (encoderPos < VOLUME_MAX)
+          ++encoderPos;
+      }
 
-    // adjust counter + if A leads B
-    if (A_set && !B_set) {
-      if (encoderPos < VOLUME_MAX)
-        ++encoderPos;
+      displayVolume(encoderPos);
+      Serial.println(encoderPos);
+
+      //Serial.println(encoderPos);
     }
-
-    rotating = false; // no more debouncing until loop() hits again
+    busy = false;
+    loop();
   }
+
 }
 
 // Interrupt on B changing state
 void doEncoderB() {
-  if (rotating) delay (1);
-  if (digitalRead(encoderPinB) != B_set) {
-    B_set = !B_set;
-    // adjust counter - 1 if B leads A
-    if (B_set && !A_set) {
-      if (encoderPos > VOLUME_MIN)
-        --encoderPos;
+  if (busy == false) {
+    busy = true;
+    if (digitalRead(encoderPinB) != B_set) {
+      B_set = !B_set;
+      // adjust counter - 1 if B leads A
+      if (B_set && !A_set) {
+        if (encoderPos > VOLUME_MIN)
+          --encoderPos;
+      }
+
+      displayVolume(encoderPos);
+      Serial.println(encoderPos);
+
     }
-
-    rotating = false;
+    busy = false;
+    loop();
   }
-}
-
-void displayVolume(byte volume) {
-  tft.setCursor(140, 140);
-  tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
-  tft.setTextSize(3);
-
-  if (volume < 10) {
-    tft.print(" ");
-    tft.print(volume);
-  }
-
-  if (volume > 9)
-    tft.print(volume);
 }
 
 void setupDisplay() {
@@ -226,10 +222,24 @@ void displayTime(DateTime timestamp) {
 
 void displayTemperature(float temperature) {
   tft.setCursor(150, 90);
-  tft.setTextSize(2);
   tft.setTextColor(0xC618, ILI9341_BLACK);
+  tft.setTextSize(2);  
   tft.print(temperature);
   tft.print("*C");
+}
+
+void displayVolume(int volume) {
+  tft.setCursor(140, 140);
+  tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
+  tft.setTextSize(3);
+
+  if (volume < 10) {
+    tft.print(" ");
+    tft.print(volume, DEC);
+  }
+
+  if (volume > 9)
+    tft.print(volume, DEC);
 }
 
 void displayATemperature(float temperature) {
@@ -258,6 +268,5 @@ void displayVoltage(float voltage) {
   tft.setTextColor(ILI9341_ORANGE, ILI9341_BLACK);
   tft.setTextSize(2);
   tft.print(voltage);
-  Serial.println(voltage);
 }
 
