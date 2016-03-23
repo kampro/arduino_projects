@@ -28,6 +28,7 @@ int lastReportedPos = 1;
 boolean busy = false;
 boolean encoderA = false;
 boolean encoderB = false;
+int encoderValue = 0;
 
 // interrupt service routine vars
 boolean A_set = false;
@@ -72,10 +73,12 @@ void loop() {
     encoderA = false;
     encoderB = false;
     doEncoderA();
+    encoderValue = 0;
   } else if (encoderB) {
     encoderA = false;
     encoderB = false;
     doEncoderB();
+    encoderValue = 0;
   }
 
   newSec = rtc.now().second();
@@ -125,15 +128,19 @@ void loop() {
 
 // Interrupt on A changing state
 void doEncoderA() {
-  if (busy == false) {
+//  if (busy == false) {
     busy = true;
     if (digitalRead(encoderPinA) != A_set) {
       A_set = !A_set;
 
       // adjust counter + if A leads B
       if (A_set && !B_set) {
-        if (encoderPos < VOLUME_MAX)
+        int cnt = 0;
+        
+        while (encoderPos < VOLUME_MAX && cnt <= encoderValue) {
           ++encoderPos;
+          ++cnt;
+        }
       }
 
       displayVolume(encoderPos);
@@ -142,20 +149,24 @@ void doEncoderA() {
       //Serial.println(encoderPos);
     }
     busy = false;
-  }
+//  }
 
 }
 
 // Interrupt on B changing state
 void doEncoderB() {
-  if (busy == false) {
+//  if (busy == false) {
     busy = true;
     if (digitalRead(encoderPinB) != B_set) {
       B_set = !B_set;
       // adjust counter - 1 if B leads A
       if (B_set && !A_set) {
-        if (encoderPos > VOLUME_MIN)
+        int cnt = encoderValue;
+        
+        while (encoderPos > VOLUME_MIN && cnt >= 0)
           --encoderPos;
+          --cnt;
+        }
       }
 
       displayVolume(encoderPos);
@@ -163,7 +174,7 @@ void doEncoderB() {
 
     }
     busy = false;
-  }
+//  }
 }
 
 void setupDisplay() {
@@ -282,9 +293,11 @@ void displayVoltage(float voltage) {
 
 void setEncoderA() {
   encoderA = true;
+  encoderValue += 1;
 }
 
 void setEncoderB() {
   encoderB = true;
+  encoderValue += 1;
 }
 
