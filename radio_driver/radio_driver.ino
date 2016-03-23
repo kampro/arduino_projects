@@ -26,7 +26,8 @@ const byte VOLUME_MAX = 35;
 volatile int encoderPos = 0;
 int lastReportedPos = 1;
 boolean busy = false;
-boolean shouldContinue = false;
+boolean encoderA = false;
+boolean encoderB = false;
 
 // interrupt service routine vars
 boolean A_set = false;
@@ -50,9 +51,9 @@ void setup() {
   digitalWrite(encoderPinA, HIGH);
   digitalWrite(encoderPinB, HIGH);
   // encoder pin on interrupt 0
-  attachInterrupt(0, doEncoderA, CHANGE);
+  attachInterrupt(0, setEncoderA, CHANGE);
   // encoder pin on interrupt 1
-  attachInterrupt(1, doEncoderB, CHANGE);
+  attachInterrupt(1, setEncoderB, CHANGE);
 
   sensors.begin();
 
@@ -66,6 +67,16 @@ void loop() {
   //    displayVolume(encoderPos);
   //    lastReportedPos = encoderPos;
   //  }
+  
+  if (encoderA) {
+    encoderA = false;
+    encoderB = false;
+    doEncoderA();
+  } else if (encoderB) {
+    encoderA = false;
+    encoderB = false;
+    doEncoderB();
+  }
 
   newSec = rtc.now().second();
   if (newSec != oldSec) {
@@ -114,7 +125,6 @@ void loop() {
 
 // Interrupt on A changing state
 void doEncoderA() {
-  shouldContinue = true;
   if (busy == false) {
     busy = true;
     if (digitalRead(encoderPinA) != A_set) {
@@ -138,7 +148,6 @@ void doEncoderA() {
 
 // Interrupt on B changing state
 void doEncoderB() {
-  shouldContinue = true;
   if (busy == false) {
     busy = true;
     if (digitalRead(encoderPinB) != B_set) {
@@ -269,5 +278,13 @@ void displayVoltage(float voltage) {
   tft.setTextColor(ILI9341_ORANGE, ILI9341_BLACK);
   tft.setTextSize(2);
   tft.print(voltage);
+}
+
+void setEncoderA() {
+  encoderA = true;
+}
+
+void setEncoderB() {
+  encoderB = true;
 }
 
