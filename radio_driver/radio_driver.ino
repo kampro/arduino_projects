@@ -26,8 +26,7 @@ const byte VOLUME_MAX = 35;
 volatile int encoderPos = 0;
 int lastReportedPos = 1;
 boolean busy = false;
-boolean encoderA = false;
-boolean encoderB = false;
+boolean encoderChanged = false;
 int encoderValue = 0;
 
 // interrupt service routine vars
@@ -69,15 +68,9 @@ void loop() {
   //    lastReportedPos = encoderPos;
   //  }
   
-  if (encoderA) {
-    encoderA = false;
-    encoderB = false;
-    doEncoderA();
-    encoderValue = 0;
-  } else if (encoderB) {
-    encoderA = false;
-    encoderB = false;
-    doEncoderB();
+  if (encoderChanged) {
+    encoderChanged = false;
+    doEncoder();
     encoderValue = 0;
   }
 
@@ -127,54 +120,17 @@ void loop() {
 }
 
 // Interrupt on A changing state
-void doEncoderA() {
-//  if (busy == false) {
-    busy = true;
-    if (digitalRead(encoderPinA) != A_set) {
-      A_set = !A_set;
-
-      // adjust counter + if A leads B
-      if (A_set && !B_set) {
-        int cnt = 0;
-        
-        while (encoderPos < VOLUME_MAX && cnt <= encoderValue) {
-          ++encoderPos;
-          ++cnt;
-        }
-      }
-
-      displayVolume(encoderPos);
-      Serial.println(encoderPos);
-
-      //Serial.println(encoderPos);
-    }
-    busy = false;
-//  }
-
-}
-
-// Interrupt on B changing state
-void doEncoderB() {
-//  if (busy == false) {
-    busy = true;
-    if (digitalRead(encoderPinB) != B_set) {
-      B_set = !B_set;
-      // adjust counter - 1 if B leads A
-      if (B_set && !A_set) {
-        int cnt = encoderValue;
-        
-        while (encoderPos > VOLUME_MIN && cnt >= 0)
-          --encoderPos;
-          --cnt;
-        }
-      }
-
-      displayVolume(encoderPos);
-      Serial.println(encoderPos);
-
-    }
-    busy = false;
-//  }
+void doEncoder() {
+  encoderPos += encoderValue;
+  
+  if (encoderPos > VOLUME_MAX) {
+    encoderPos = VOLUME_MAX;
+  } else if (encoderPos < VOLUME_MIN) {
+    encoderPos = VOLUME_MIN;
+  }
+  
+  displayVolume(encoderPos);
+  Serial.println(encoderPos);
 }
 
 void setupDisplay() {
@@ -292,12 +248,12 @@ void displayVoltage(float voltage) {
 }
 
 void setEncoderA() {
-  encoderA = true;
+  encoderChanged = true;
   encoderValue += 1;
 }
 
 void setEncoderB() {
-  encoderB = true;
-  encoderValue += 1;
+  encoderChanged = true;
+  encoderValue -= 1;
 }
 
