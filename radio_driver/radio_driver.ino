@@ -23,9 +23,10 @@ DallasTemperature sensors(&oneWire);
 const byte VOLUME_MIN = 0;
 const byte VOLUME_MAX = 35;
 
-volatile int encoderPos = 0; // a counter for the dial
-int lastReportedPos = 1; // change management
-boolean busy = false; // debounce management
+volatile int encoderPos = 0;
+int lastReportedPos = 1;
+boolean busy = false;
+boolean shouldContinue = false;
 
 // interrupt service routine vars
 boolean A_set = false;
@@ -113,6 +114,7 @@ void loop() {
 
 // Interrupt on A changing state
 void doEncoderA() {
+  shouldContinue = true;
   if (busy == false) {
     busy = true;
     if (digitalRead(encoderPinA) != A_set) {
@@ -130,13 +132,13 @@ void doEncoderA() {
       //Serial.println(encoderPos);
     }
     busy = false;
-    loop();
   }
 
 }
 
 // Interrupt on B changing state
 void doEncoderB() {
+  shouldContinue = true;
   if (busy == false) {
     busy = true;
     if (digitalRead(encoderPinB) != B_set) {
@@ -152,7 +154,6 @@ void doEncoderB() {
 
     }
     busy = false;
-    loop();
   }
 }
 
